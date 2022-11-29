@@ -184,6 +184,49 @@ def init_weights(m):
         torch.nn.init.orthogonal_(m.weight_hh)
         torch.nn.init.orthogonal_(m.weight_ih)
 
+class TransformerActor(nn.Module):
+    def __init__(self,  dim_size, resource_size, n_action_steps, action_size, seed, h_size=128, hidden_dim=10):
+        super(TransformerActor, self).__init__()
+        self.seed = torch.manual_seed(seed)
+        self.pos_encoder = PositionalEncoding(d_model, dropout)
+        encoder_layers = TransformerEncoderLayer(d_model, nhead, d_hid, dropout)
+        self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
+        self.encoder = nn.Embedding(ntoken, d_model)
+        self.d_model = d_model
+        self.decoder = nn.Linear(d_model, ntoken)
+        self.init_weights()
+
+    def init_weight(self):
+        initrange = 0.1
+        self.encoder.weight.data.uniform_(-initrange, initrange)
+        self.decoder.bias.data.zero_()
+        self.decoder.weight.data.uniform_(-initrange, initrange)
+
+    def forward(self, dimension, action_status, action_val, action_step, lstm_hid,temperature=1):
+        """
+        Args:
+            src: Tensor, shape [seq_len, batch_size]
+            src_mask: Tensor, shape [seq_len, seq_len]
+
+        Returns:
+            output Tensor of shape [seq_len, batch_size, ntoken]
+        """
+        # original code
+        x1 = self.encoder(dimension)
+        x1 = x1.unsqueeze(0)
+        x2 = self.encoder_action(action_val)
+        x2 = x2.unsqueeze(0)
+        x3 = self.encoder_status(action_status)
+        x3 = x3.unsqueeze(0)
+        x = torch.cat((x1, x2,x3), dim=1)
+        # transformer code TODO: pass x somehow
+        src = self.encoder(src) * math.sqrt(self.d_model)
+        src = self.pos_encoder(src)
+        output = self.transformer_encoder(src, src_mask)
+        output = self.decoder(output)
+        return output
+
+
 class Actor(nn.Module):
     def __init__(self,  dim_size, resource_size, n_action_steps, action_size, seed, h_size=128, hidden_dim=10):
         super(Actor, self).__init__()

@@ -164,7 +164,7 @@ class Agent():
         self.actor_optimizer.zero_grad()
         policy_loss.backward()
         torch.nn.utils.clip_grad_norm_(self.actor.parameters(), CLIPPING_MODEL)
-        torch.nn.utils.clip_grad_norm_(self.actor.lstm.parameters(), CLIPPING_LSTM)
+        # torch.nn.utils.clip_grad_norm_(self.actor.lstm.parameters(), CLIPPING_LSTM)
         self.actor_optimizer.step()
         # self.actor_refresh()
         self.reset()
@@ -197,15 +197,18 @@ class TransformerActor(nn.Module):
         d_hid = 200
         nhead = 2
         nlayers = 2
+        seq_len = dim_size + 3
         super(TransformerActor, self).__init__()
         self.seed = torch.manual_seed(seed)
-        self.encoder = nn.Embedding(1000, d_model)
+        self.encoder = nn.Linear(seq_len, seq_len*d_model)
+        # self.encoder = nn.Embedding(1000, d_model)
         # self.pos_encoder = PositionalEncoding(d_model, dropout)
         encoder_layers = TransformerEncoderLayer(d_model, nhead, d_hid, dropout)
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
-        self.decoder = nn.Linear(10*1*d_model, 2*action_size) #max_seq_len(10)*batch_size(1)*d_model(10) x 2*action_size
+        self.decoder = nn.Linear(seq_len*1*d_model, 2*action_size) #seq_len*batch_size*d_model x 2*action_size
         self.action_size = action_size
         self.d_model = d_model
+        self.seq_len = seq_len
         self.init_weight()
 
     def init_weight(self):
@@ -233,20 +236,17 @@ class TransformerActor(nn.Module):
         x1 = dimension
         x2 = action_val
         x3 = action_status
-        src = torch.cat((x1, x2, x3), dim=0).unsqueeze(-1)
-        src = src.long()
-        src = self.encoder(src) * math.sqrt(self.d_model)
+        x3 = x3.clamp(min=0)
+        src = torch.cat((x1, x2, x3), dim=0)
+        # src = src.long(): If encoder is an embedding layer
+        src = self.encoder(src).reshape(self.seq_len, 1, self.d_model)
+        src = src * math.sqrt(self.d_model)
         # src = self.pos_encoder(src)
         src_mask = generate_square_subsequent_mask(src.size(0)).to(device)
         output = self.transformer_encoder(src, src_mask) # seq_len x batch_size x d_model
-        if output.size(0) != 10:
-            output = torch.nn.functional.pad(
-                input=data, pad=(0,0,0,0,0,3), mode='constant', value=0
-            )
         output = output.reshape(1, output.shape[0]*output.shape[1]*output.shape[2])
         output = self.decoder(output)
         output = output.squeeze(0)
-        print(output.shape[0])
         output = output.reshape(2, int(output.shape[0]/2))
         x = F.softmax(output / temperature, dim=1)
         return (x), (None, None)

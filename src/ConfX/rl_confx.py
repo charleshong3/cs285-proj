@@ -239,8 +239,9 @@ class TransformerActor(nn.Module):
         src = self.encoder(src) * math.sqrt(self.d_model)
         # src = self.pos_encoder(src)
         src_mask = generate_square_subsequent_mask(src.size(0)).to(device)
-        output = self.transformer_encoder(src, src_mask)
-        output = self.decoder(output)
+        output = self.transformer_encoder(src, src_mask) # seq_len x batch_size x d_model
+        output = output.mean(dim=0) # batch_size x d_model
+        output = self.decoder(output).reshape(2, ) # batch_size x 2*action_size -> 2 x action_size (assuming batch_size=0)
         x = F.softmax(output / temperature, dim=1)
         return (x), (None, None)
 

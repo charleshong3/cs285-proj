@@ -188,17 +188,17 @@ class TransformerActor(nn.Module):
     def __init__(self,  dim_size, resource_size, n_action_steps, action_size, seed, h_size=128, hidden_dim=10):
         super(TransformerActor, self).__init__()
         self.seed = torch.manual_seed(seed)
-        self.pos_encoder = PositionalEncoding(d_model, dropout)
+        #self.pos_encoder = PositionalEncoding(d_model, dropout)
         encoder_layers = TransformerEncoderLayer(d_model, nhead, d_hid, dropout)
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
-        self.encoder = nn.Embedding(ntoken, d_model)
+        #self.encoder = nn.Embedding(ntoken, d_model)
         self.d_model = d_model
         self.decoder = nn.Linear(d_model, ntoken)
         self.init_weights()
 
     def init_weight(self):
         initrange = 0.1
-        self.encoder.weight.data.uniform_(-initrange, initrange)
+        #self.encoder.weight.data.uniform_(-initrange, initrange)
         self.decoder.bias.data.zero_()
         self.decoder.weight.data.uniform_(-initrange, initrange)
 
@@ -252,6 +252,10 @@ class Actor(nn.Module):
     def init_weight(self):
         self.apply(init_weights)
     def forward(self, dimension, action_status, action_val, action_step, lstm_hid,temperature=1):
+        print('dimension: ', dimension.shape)
+        print('action_status: ', action_status.shape)
+        print('action_val: ', action_val.shape)
+        print('action_step: ', action_step)
         x1 = self.encoder(dimension)
         x1 = x1.unsqueeze(0)
         x2 = self.encoder_action(action_val)

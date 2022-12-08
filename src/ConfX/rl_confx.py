@@ -2,6 +2,8 @@
 Two action at a time discrete
 '''
 
+import math
+
 import torch.nn as nn
 
 from torch.distributions import Categorical
@@ -13,6 +15,7 @@ import copy
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 LR_ACTOR = 1e-3 # learning rate of the actor
@@ -41,7 +44,7 @@ class Agent():
         self.state_div =np.cumsum(state_div)
         self.seed = random.seed(seed)
 
-        self.actor = Actor(dim_size, resource_size, n_action_steps, action_size, seed, lstm_hid_size).to(device)
+        self.actor = TransformerActor(dim_size, resource_size, n_action_steps, action_size, seed, lstm_hid_size).to(device)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=LR_ACTOR)
         self.scheduler =optim.lr_scheduler.ReduceLROnPlateau(self.actor_optimizer, factor=0.9, min_lr=1e-6)
         self.saved_log_probs = []
@@ -184,17 +187,26 @@ def init_weights(m):
         torch.nn.init.orthogonal_(m.weight_hh)
         torch.nn.init.orthogonal_(m.weight_ih)
 
+def generate_square_subsequent_mask(sz: int) -> torch.Tensor:
+    """Generates an upper-triangular matrix of -inf, with zeros on diag."""
+    return torch.triu(torch.ones(sz, sz) * float('-inf'), diagonal=1)
+
 class TransformerActor(nn.Module):
-    def __init__(self,  dim_size, resource_size, n_action_steps, action_size, seed, h_size=128, hidden_dim=10):
+    def __init__(self,  dim_size, resource_size, n_action_steps, action_size, seed, h_size=128, hidden_dim=10, dropout=0.2):
+        d_model = 10
+        d_hid = 200
+        nhead = 2
+        nlayers = 2
         super(TransformerActor, self).__init__()
         self.seed = torch.manual_seed(seed)
-        self.pos_encoder = PositionalEncoding(d_model, dropout)
+        # self.pos_encoder = PositionalEncoding(d_model, dropout)
         encoder_layers = TransformerEncoderLayer(d_model, nhead, d_hid, dropout)
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
-        self.encoder = nn.Embedding(ntoken, d_model)
+        self.encoder = nn.Embedding(1000, d_model)
         self.d_model = d_model
-        self.decoder = nn.Linear(d_model, ntoken)
-        self.init_weights()
+        self.decoder = nn.Linear(d_model, action_size * 2)
+        self.action_size = action_size
+        self.init_weight()
 
     def init_weight(self):
         initrange = 0.1
@@ -212,19 +224,25 @@ class TransformerActor(nn.Module):
             output Tensor of shape [seq_len, batch_size, ntoken]
         """
         # original code
-        x1 = self.encoder(dimension)
-        x1 = x1.unsqueeze(0)
-        x2 = self.encoder_action(action_val)
-        x2 = x2.unsqueeze(0)
-        x3 = self.encoder_status(action_status)
-        x3 = x3.unsqueeze(0)
-        x = torch.cat((x1, x2,x3), dim=1)
+        # x1 = self.encoder(dimension)
+        # x1 = x1.unsqueeze(0)
+        # x2 = self.encoder_action(action_val)
+        # x2 = x2.unsqueeze(0)
+        # x3 = self.encoder_status(action_status)
+        # x3 = x3.unsqueeze(0)
+        x1 = dimension
+        x2 = action_val
+        x3 = action_status
+        src = torch.cat((x1, x2, x3), dim=0).unsqueeze(-1)
         # transformer code TODO: pass x somehow
+        src = src.long()
         src = self.encoder(src) * math.sqrt(self.d_model)
-        src = self.pos_encoder(src)
+        # src = self.pos_encoder(src)
+        src_mask = generate_square_subsequent_mask(src.size(0)).to(device)
         output = self.transformer_encoder(src, src_mask)
         output = self.decoder(output)
-        return output
+        x = F.softmax(output / temperature, dim=1)
+        return (x), (None, None)
 
 
 class Actor(nn.Module):

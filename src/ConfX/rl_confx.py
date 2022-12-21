@@ -29,7 +29,13 @@ def hidden_init(layer):
     return (-lim, lim)
 
 class Agent():
-    def __init__(self, dim_size, resource_size, n_action_steps, action_size, seed, action_step_obs_size=1,lstm_hid_size=128, decay=0.95, is_gemm=False):
+    def __init__(self, dim_size, resource_size, n_action_steps, action_size, seed, action_step_obs_size=1,lstm_hid_size=128, decay=0.95, is_gemm=False,
+                 dropout=0.2,
+                 d_model = 10,
+                 d_hid = 200,
+                 nhead = 2,
+                 nlayers = 2,
+                ):
         self.dim_size = dim_size
         self.action_size = action_size
         self.n_action_steps = n_action_steps
@@ -44,7 +50,8 @@ class Agent():
         self.state_div =np.cumsum(state_div)
         self.seed = random.seed(seed)
 
-        self.actor = TransformerActor(dim_size, resource_size, n_action_steps, action_size, seed, lstm_hid_size).to(device)
+        self.actor = TransformerActor(dim_size, resource_size, n_action_steps, action_size, seed, lstm_hid_size,
+                                      dropout=dropout, d_model=d_model, d_hid=d_hid, nhead=nhead, nlayers=nlayers).to(device)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=LR_ACTOR)
         self.scheduler =optim.lr_scheduler.ReduceLROnPlateau(self.actor_optimizer, factor=0.9, min_lr=1e-6)
         self.saved_log_probs = []
@@ -192,11 +199,22 @@ def generate_square_subsequent_mask(sz: int) -> torch.Tensor:
     return torch.triu(torch.ones(sz, sz) * float('-inf'), diagonal=1)
 
 class TransformerActor(nn.Module):
-    def __init__(self,  dim_size, resource_size, n_action_steps, action_size, seed, h_size=128, hidden_dim=10, dropout=0.2):
-        d_model = 10
-        d_hid = 200
-        nhead = 2
-        nlayers = 2
+    def __init__(self,  dim_size, resource_size, n_action_steps, action_size, seed, 
+                 h_size=128, hidden_dim=10, 
+                 dropout=0.2,
+                 d_model = 10,
+                 d_hid = 200,
+                 nhead = 2,
+                 nlayers = 2,
+                ):
+        hyperparams = {
+            "dropout": dropout,
+            "d_model": d_model,
+            "d_hid": d_hid,
+            "nhead": nhead,
+            "nlayers": nlayers,
+        }
+        print("Transformer hyperparams:", hyperparams)
         seq_len = dim_size + 3
         super(TransformerActor, self).__init__()
         self.seed = torch.manual_seed(seed)

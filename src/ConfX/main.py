@@ -20,9 +20,7 @@ import copy
 from datetime import datetime
 from src.utils.get_action_space import *
 import glob
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-
+# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def policy_graident(n_episodes=100000, max_t=1000, print_every=10, outfile="out.plt", chkpt_file="trial.plt", eps=0,temperature=1):
 
@@ -156,7 +154,23 @@ def check_sol(sol):
     print("Reward: {}".format(reward))
     return reward
 
-if __name__ == "__main__":
+def main(
+    outdir = "outdir",
+    model = "example", 
+    df = "shi",
+    dropout=0.2,
+    d_model = 10,
+    d_hid = 200,
+    nhead = 2,
+    nlayers = 2,
+    gpu = 0,
+):
+
+    global env
+    global agent
+    global model_defs
+    global ratio
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--outdir', type=str, default="outdir", help='output directiory')
     parser.add_argument('--model', type=str, default="example", help='The experimenting model.')
@@ -170,9 +184,13 @@ if __name__ == "__main__":
     parser.add_argument('--n_act', type=int, default=2, help='The number of action to make for each layer', choices=[1, 2, 3])
     opt = parser.parse_args()
     ratio = opt.mul
-    device = 'cuda:' + str(opt.gpu) if torch.cuda.is_available() else 'cpu'
-    
+    # device = 'cuda:' + str(opt.gpu) if torch.cuda.is_available() else 'cpu'
 
+    opt.outdir = outdir
+    opt.model = model
+    opt.df = df
+    opt.epochs = 333
+    opt.alg = "RL"
 
     now = datetime.now()
     now_date = "{}".format(now.date())
@@ -213,8 +231,13 @@ if __name__ == "__main__":
     try:
         # ============================Start Env============================================================================================
 
-        agent = Agent(dim_size=dim_size, resource_size=2, n_action_steps = 2, action_size=12, seed=random.randint(0, 2**63))
-
+        agent = Agent(dim_size=dim_size, resource_size=2, n_action_steps = 2, action_size=12, seed=1,
+                        dropout=dropout,
+                        d_model=d_model,
+                        d_hid = d_hid,
+                        nhead = nhead,
+                        nlayers = nlayers,
+                    )
         env = MaestroEnvironment(model_defs=model_defs,dim_size=dim_size, resource_size=2,n_action_steps=2, dataflow=opt.df)
         state = env.reset()
         env.set_fitness(opt.fitness)
@@ -336,3 +359,5 @@ if __name__ == "__main__":
             os.remove(f)
         for f in glob.glob("*.csv"):
             os.remove(f)
+    
+    return best_reward_point

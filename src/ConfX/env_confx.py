@@ -6,6 +6,7 @@ import random
 import pickle
 import copy
 import os, sys
+import time
 script_dir = os.path.dirname(__file__)
 module_path = os.path.abspath(os.path.join(script_dir, '../../'))
 if module_path not in sys.path:
@@ -24,10 +25,11 @@ class MaestroEnvironment(object):
 
         maestro = dst_path
         self._executable = "{}".format(maestro)
-        random.seed()
-        random_file_name = random.randint(0, 2 ** 31)
+        random_file_name = time.strftime("%Y-%m-%d--%H-%M-%S", time.gmtime())
+        random_file_name += "_" + str(os.getpid())
+        random_file_name += "_" + str(random.randint(0, 2 ** 31))
         self.random_file_name = "{}".format(random_file_name)
-
+        random.seed()
 
         global action_space, action_bound, action_bottom
         action_space, action_bound, action_bottom = get_action_space()
